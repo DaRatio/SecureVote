@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Verify — SecureVote</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<nav>
+  <a href="/" class="brand">SecureVote</a>
+  <a href="/register">Register</a>
+  <a href="/vote">Vote</a>
+  <a href="/results">Results</a>
+  <a href="/verify" class="active">Verify</a>
+</nav>
+
+<div class="container">
+  <h1>Audit &amp; Verification</h1>
+  <p>Inspect the blockchain, verify chain integrity, and look up individual blocks.
+     All data here comes directly from the public ledger — no filtering, no editing.</p>
+
+  <div id="alert-box" class="hidden"></div>
+
+  <!-- Chain integrity -->
+  <div class="card">
+    <h2>Chain Integrity</h2>
+    <div class="flex gap-2 items-center">
+      <button class="btn btn-primary btn-sm" id="btn-verify-chain">Verify Chain</button>
+      <span id="verify-result"></span>
+    </div>
+  </div>
+
+  <!-- Block lookup -->
+  <div class="card">
+    <h2>Block Lookup</h2>
+    <div class="flex gap-2 items-center">
+      <input type="number" id="block-idx" placeholder="Block index (0, 1, 2…)" min="0" style="width:220px;" />
+      <button class="btn btn-outline btn-sm" id="btn-lookup-block">Lookup</button>
+    </div>
+    <div id="block-display" class="code-block hidden" style="margin-top:1rem;"></div>
+  </div>
+
+  <!-- Full chain explorer -->
+  <div class="card">
+    <h2>Blockchain Explorer</h2>
+    <p class="text-small">The full chain is shown below, newest block first. Each block contains one anonymous vote.</p>
+    <div class="flex gap-2 mb-0" style="margin-bottom:1rem;">
+      <button class="btn btn-outline btn-sm" id="btn-load-chain">Load Chain</button>
+      <span id="chain-status" class="text-muted text-small"></span>
+    </div>
+    <div id="chain-container"></div>
+  </div>
+
+  <!-- Token verification -->
+  <div class="card">
+    <h2>Verify Credential</h2>
+    <p class="text-small">Check whether a (token, signature) pair is cryptographically valid.
+       This does NOT reveal whether the token has been used — that lookup is public on the chain.</p>
+    <div class="form-group">
+      <label for="vt-token">Token (hex)</label>
+      <input type="text" id="vt-token" placeholder="64-char hex" />
+    </div>
+    <div class="form-group">
+      <label for="vt-sig">Signature (base64)</label>
+      <textarea id="vt-sig" rows="3" style="font-family:monospace; font-size:.82rem;"></textarea>
+    </div>
+    <button class="btn btn-outline btn-sm" id="btn-verify-token">Verify Credential</button>
+    <div id="vt-result" class="hidden" style="margin-top:.75rem;"></div>
+  </div>
+</div>
+
+<script src="/static/js/app.js"></script>
+<script>
+// Chain integrity
+document.getElementById('btn-verify-chain').addEventListener('click', async () => {
+  const el = document.getElementById('verify-result');
+  el.textContent = 'Verifying…';
+  try {
+    const result = await verifyChain();
+    el.innerHTML = result.valid
+      ? `<span class="badge badge-green">&#10003; ${result.message} (${result.block_count} blocks)</span>`
+      : `<span class="badge badge-red">&#10007; ${result.message}</span>`;
+  } catch (e) {
+    el.innerHTML = `<span class="badge badge-red">Error: ${e.message}</span>`;
+  }
+});
+
+// Block lookup
+document.getElementById('btn-lookup-block').addEventListener('click', async () => {
+  const idx = parseInt(document.getElementById('block-idx').value, 10);
+  const display = document.getElementById('block-display');
+  if (isNaN(idx) || idx < 0) {
+    display.textContent = 'Please enter a valid block index.';
+    showElement(display);
+    return;
+  }
+  try {
+    const block = await apiFetch(`/api/blockchain/${idx}`);
+    display.textContent = JSON.stringify(block, null, 2);
+    showElement(display);
+  } catch (e) {
+    display.textContent = `Block not found or error: ${e.message}`;
+    showElement(display);
+  }
+});
+
+// Full chain
+document.getElementById('btn-load-chain').addEventListener('click', async () => {
+  const status    = document.getElementById('chain-status');
+  const container = document.getElementById('chain-container');
+  status.textContent = 'Loading…';
+  try {
+    const data = await getChain();
+    const blocks = data.chain.slice().reverse(); // newest first
+    status.textContent = `${blocks.length} block(s) found`;
+    container.innerHTML = blocks.map(b => `
+      <details style="border:1px solid var(--gray-200); border-radius:var(--radius);
+                      margin-bottom:.5rem; padding:.75rem 1rem;">
+        <summary style="cursor:pointer; font-weight:600;">
+          Block #${b.index}
+          <span class="badge badge-gray" style="margin-left:.5rem;">${b.votes.length} vote(s)</span>
+          <span class="text-small text-muted" style="margin-left:.5rem;">${new Date(b.timestamp * 1000).toLocaleString()}</span>
+        </summary>
+        <div class="code-block" style="margin-top:.75rem;">${JSON.stringify(b, null, 2)}</div>
+      </details>`).join('');
+  } catch (e) {
+    status.textContent = `Error: ${e.message}`;
+  }
+});
+
+// Token verification
+document.getElementById('btn-verify-token').addEventListener('click', async () => {
+  const tokenHex = document.getElementById('vt-token').value.trim();
+  const sigB64   = document.getElementById('vt-sig').value.trim();
+  const resultEl = document.getElementById('vt-result');
+  if (!tokenHex || !sigB64) {
+    resultEl.innerHTML = '<div class="alert alert-error">Please enter both token and signature.</div>';
+    showElement(resultEl);
+    return;
+  }
+  try {
+    const result = await verifyToken(tokenHex, sigB64);
+    resultEl.innerHTML = result.valid
+      ? '<div class="alert alert-success">&#10003; Credential is cryptographically valid.</div>'
+      : '<div class="alert alert-error">&#10007; Credential is INVALID.</div>';
+    showElement(resultEl);
+  } catch (e) {
+    resultEl.innerHTML = `<div class="alert alert-error">Error: ${e.message}</div>`;
+    showElement(resultEl);
+  }
+});
+</script>
+</body>
+</html>
