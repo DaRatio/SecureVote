@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register — SecureVote</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<nav>
+  <a href="/" class="brand">SecureVote</a>
+  <a href="/register" class="active">Register</a>
+  <a href="/vote">Vote</a>
+  <a href="/results">Results</a>
+  <a href="/verify">Verify</a>
+</nav>
+
+<div class="container">
+  <h1>Voter Registration</h1>
+  <p>Enter your Voter ID to receive a blind-signed credential. Your token is generated
+     and blinded in your browser — the server never sees it.</p>
+
+  <!-- Step indicator -->
+  <div class="steps">
+    <div class="step active" id="step-1">1. Enter Voter ID</div>
+    <div class="step" id="step-2">2. Blind &amp; Register</div>
+    <div class="step" id="step-3">3. Unblind Token</div>
+    <div class="step" id="step-4">4. Save Credential</div>
+  </div>
+
+  <!-- Alerts -->
+  <div id="alert-box" class="hidden"></div>
+
+  <!-- Step 1: Enter Voter ID -->
+  <div id="panel-1" class="card">
+    <h2>Step 1 — Enter Your Voter ID</h2>
+    <p>Demo voter IDs are <span class="mono">VOTER_00001</span> through <span class="mono">VOTER_00050</span>.</p>
+    <div class="form-group">
+      <label for="voter-id">Voter ID</label>
+      <input type="text" id="voter-id" placeholder="e.g. VOTER_00001" autocomplete="off" />
+    </div>
+    <button class="btn btn-primary" id="btn-check">Check Eligibility &amp; Register</button>
+  </div>
+
+  <!-- Step 2: Blind & sign (auto) -->
+  <div id="panel-2" class="card hidden">
+    <h2>Step 2 — Generating &amp; Blinding Token</h2>
+    <p>Your browser is generating a random token and blinding it with the issuer's public key.
+       The server will sign the blinded version — it cannot see your actual token.</p>
+    <div class="flex gap-1 items-center">
+      <span class="spinner spinner-dark"></span>
+      <span id="blind-status">Working…</span>
+    </div>
+  </div>
+
+  <!-- Step 3: Unblind (auto) -->
+  <div id="panel-3" class="card hidden">
+    <h2>Step 3 — Unblinding Signature</h2>
+    <p>Removing the blinding factor locally to produce your final credential.</p>
+    <div class="flex gap-1 items-center">
+      <span class="spinner spinner-dark"></span>
+      <span>Unblinding…</span>
+    </div>
+  </div>
+
+  <!-- Step 4: Credential display -->
+  <div id="panel-4" class="card hidden">
+    <h2>Step 4 — Your Voting Credential</h2>
+    <div id="alert-box-4" class="alert alert-success">
+      Registration successful! Your credential has been saved in this browser.
+    </div>
+
+    <div class="form-group">
+      <label>Token (hex) — keep this secret!</label>
+      <div class="code-block" id="display-token"></div>
+    </div>
+    <div class="form-group">
+      <label>Signature (base64)</label>
+      <div class="code-block" id="display-sig"></div>
+    </div>
+
+    <p class="text-small">
+      <strong>Important:</strong> Your credential is stored in this browser's localStorage.
+      You can also copy it manually. Do not share it — anyone with this credential can vote
+      in your name (though they still cannot link the vote to your identity).
+    </p>
+
+    <div class="flex gap-2 mt-2">
+      <button class="btn btn-outline btn-sm" id="btn-copy">Copy Credential JSON</button>
+      <a href="/vote" class="btn btn-primary">Go Vote &rarr;</a>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/crypto.js"></script>
+<script src="/static/js/app.js"></script>
+<script>
+const steps = [
+  document.getElementById('step-1'),
+  document.getElementById('step-2'),
+  document.getElementById('step-3'),
+  document.getElementById('step-4'),
+];
+const panels = [
+  document.getElementById('panel-1'),
+  document.getElementById('panel-2'),
+  document.getElementById('panel-3'),
+  document.getElementById('panel-4'),
+];
+const alertBox = document.getElementById('alert-box');
+const btnCheck = document.getElementById('btn-check');
+const btnCopy  = document.getElementById('btn-copy');
+
+function showPanel(idx) {
+  panels.forEach((p, i) => i === idx ? showElement(p) : hideElement(p));
+  setStep(steps, idx);
+}
+
+btnCheck.addEventListener('click', async () => {
+  const voterId = document.getElementById('voter-id').value.trim();
+  if (!voterId) {
+    showAlert(alertBox, 'Please enter your Voter ID.', 'error');
+    return;
+  }
+
+  setLoading(btnCheck, true, 'Check Eligibility & Register');
+  hideElement(alertBox);
+
+  try {
+    // Check status first
+    const status = await getVoterStatus(voterId);
+    if (!status.eligible) {
+      showAlert(alertBox, `Voter ID "${voterId}" is not on the eligible voters list.`, 'error');
+      setLoading(btnCheck, false, 'Check Eligibility & Register');
+      return;
+    }
+    if (status.token_issued) {
+      showAlert(alertBox, `A token has already been issued to "${voterId}". Each voter may only register once.`, 'error');
+      setLoading(btnCheck, false, 'Check Eligibility & Register');
+      return;
+    }
+
+    // Step 2: blind
+    showPanel(1);
+    document.getElementById('blind-status').textContent = 'Fetching issuer public key…';
+    const publicKey = await getPublicKey();
+
+    document.getElementById('blind-status').textContent = 'Generating random token and blinding…';
+    const token = generateToken();
+    const { blindedB64, blindingFactor } = await blindToken(token, publicKey);
+
+    document.getElementById('blind-status').textContent = 'Sending blinded token to issuer…';
+    const regResult = await registerVoter(voterId, blindedB64);
+    if (!regResult.success) {
+      showAlert(alertBox, regResult.error || 'Registration failed.', 'error');
+      showPanel(0);
+      setLoading(btnCheck, false, 'Check Eligibility & Register');
+      return;
+    }
+
+    // Step 3: unblind
+    showPanel(2);
+    const signature = await unblindSignature(regResult.blind_sig_b64, blindingFactor, publicKey);
+
+    // Serialize
+    const cred = serializeCredential(token, signature);
+
+    // Save to localStorage (blinding factor no longer needed)
+    saveCredential(cred.token_hex, cred.signature_b64, blindingFactor.toString(16));
+
+    // Step 4: display
+    document.getElementById('display-token').textContent = cred.token_hex;
+    document.getElementById('display-sig').textContent   = cred.signature_b64;
+    showPanel(3);
+
+  } catch (err) {
+    showAlert(alertBox, `Error: ${err.message}`, 'error');
+    showPanel(0);
+    setLoading(btnCheck, false, 'Check Eligibility & Register');
+  }
+});
+
+btnCopy.addEventListener('click', () => {
+  const cred = loadCredential();
+  if (!cred) return;
+  const json = JSON.stringify({ token_hex: cred.token_hex, signature_b64: cred.signature_b64 }, null, 2);
+  navigator.clipboard.writeText(json).then(() => {
+    btnCopy.textContent = 'Copied!';
+    setTimeout(() => { btnCopy.textContent = 'Copy Credential JSON'; }, 2000);
+  });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SecureVote — Anonymous Blockchain Voting</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<nav>
+  <a href="/" class="brand">SecureVote</a>
+  <a href="/register">Register</a>
+  <a href="/vote">Vote</a>
+  <a href="/results">Results</a>
+  <a href="/verify">Verify</a>
+</nav>
+
+<div class="container">
+  <div class="card text-center">
+    <h1>Anonymous Blockchain Voting</h1>
+    <p>
+      SecureVote uses <strong>RSA blind signatures</strong> and a public blockchain
+      to guarantee <em>one-person-one-vote</em> while maintaining <em>complete voter anonymity</em>.
+    </p>
+    <p>
+      The identity layer issues cryptographic tokens without knowing their content.
+      The voting layer accepts only valid tokens — with no knowledge of who holds them.
+    </p>
+  </div>
+
+  <div class="card">
+    <h2>How it works</h2>
+    <ol style="padding-left:1.5rem; color:var(--gray-600); line-height:2">
+      <li><strong>Register</strong> — Enter your Voter ID. The system verifies eligibility and issues a <em>blind-signed</em> token without ever seeing its content.</li>
+      <li><strong>Unblind</strong> — Your browser removes the blinding factor locally. The resulting token is a valid credential the issuer cannot trace back to you.</li>
+      <li><strong>Vote</strong> — Submit your token + candidate choice anonymously. The blockchain verifies the signature and records your vote (no name attached).</li>
+      <li><strong>Verify</strong> — Anyone can audit the entire blockchain and confirm the tally is accurate.</li>
+    </ol>
+  </div>
+
+  <div style="display:grid; grid-template-columns:1fr 1fr; gap:1rem;">
+    <div class="card text-center">
+      <h3>Register &amp; Get Token</h3>
+      <p class="text-small">Verify your identity and receive a cryptographic voting credential.</p>
+      <a href="/register" class="btn btn-primary">Register</a>
+    </div>
+    <div class="card text-center">
+      <h3>Cast Your Vote</h3>
+      <p class="text-small">Use your token to vote anonymously on the blockchain.</p>
+      <a href="/vote" class="btn btn-success">Vote Now</a>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Security Guarantees</h2>
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:1rem;">
+      <div>
+        <h3>One Person, One Vote</h3>
+        <p class="text-small">Each Voter ID can only receive one token. Each token can only be used once (blockchain enforced).</p>
+      </div>
+      <div>
+        <h3>Complete Anonymity</h3>
+        <p class="text-small">The blind signature protocol ensures no one can link your identity to your vote — not even the issuer.</p>
+      </div>
+      <div>
+        <h3>Public Verifiability</h3>
+        <p class="text-small">The entire blockchain is public. Anyone can independently audit the vote tally and detect tampering.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

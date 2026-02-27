@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vote — SecureVote</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<nav>
+  <a href="/" class="brand">SecureVote</a>
+  <a href="/register">Register</a>
+  <a href="/vote" class="active">Vote</a>
+  <a href="/results">Results</a>
+  <a href="/verify">Verify</a>
+</nav>
+
+<div class="container">
+  <h1>Cast Your Vote</h1>
+  <p>Your vote is completely anonymous. No voter ID is sent to the blockchain —
+     only your blind-signed token and your candidate choice.</p>
+
+  <div id="alert-box" class="hidden"></div>
+
+  <!-- Credential source selector -->
+  <div class="card" id="panel-cred">
+    <h2>Step 1 — Provide Your Credential</h2>
+
+    <div class="form-group">
+      <label>Credential source</label>
+      <div style="display:flex; gap:1rem; margin-bottom:1rem;">
+        <label style="font-weight:normal; cursor:pointer;">
+          <input type="radio" name="cred-src" value="browser" checked> Use credential saved in this browser
+        </label>
+        <label style="font-weight:normal; cursor:pointer;">
+          <input type="radio" name="cred-src" value="manual"> Paste credential manually
+        </label>
+      </div>
+    </div>
+
+    <!-- Browser-stored credential preview -->
+    <div id="browser-cred-panel">
+      <div id="browser-cred-found" class="hidden">
+        <div class="alert alert-success">
+          A credential was found in your browser's localStorage.
+        </div>
+        <div class="form-group">
+          <label>Token (hex)</label>
+          <div class="code-block" id="preview-token" style="max-height:60px; overflow:hidden; text-overflow:ellipsis;"></div>
+        </div>
+      </div>
+      <div id="browser-cred-missing" class="hidden">
+        <div class="alert alert-warning">
+          No credential found in this browser. Please <a href="/register">register first</a> or paste your credential manually below.
+        </div>
+      </div>
+    </div>
+
+    <!-- Manual credential input -->
+    <div id="manual-cred-panel" class="hidden">
+      <div class="form-group">
+        <label for="manual-token">Token (hex)</label>
+        <input type="text" id="manual-token" placeholder="64-character hex string" autocomplete="off" />
+      </div>
+      <div class="form-group">
+        <label for="manual-sig">Signature (base64)</label>
+        <textarea id="manual-sig" rows="4" placeholder="Base64-encoded RSA signature" style="font-family:monospace; font-size:.82rem;"></textarea>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="btn-load-cred">Next: Select Candidate &rarr;</button>
+  </div>
+
+  <!-- Candidate selection -->
+  <div class="card hidden" id="panel-vote">
+    <h2>Step 2 — Select Your Candidate</h2>
+    <p>Your selection is transmitted with your token — but the blockchain only records
+       the token hash, not your identity.</p>
+
+    <div id="candidate-list" class="form-group"></div>
+
+    <div class="flex gap-2 mt-2">
+      <button class="btn btn-outline" id="btn-back">← Back</button>
+      <button class="btn btn-success" id="btn-cast">Cast Vote</button>
+    </div>
+  </div>
+
+  <!-- Confirmation -->
+  <div class="card hidden" id="panel-confirm">
+    <h2>Vote Cast Successfully!</h2>
+    <div class="alert alert-success">Your anonymous vote has been recorded on the blockchain.</div>
+
+    <div class="form-group">
+      <label>Transaction hash (your receipt)</label>
+      <div class="code-block" id="display-tx-hash"></div>
+    </div>
+    <div class="form-group">
+      <label>Block index</label>
+      <div class="mono" id="display-block-idx"></div>
+    </div>
+
+    <p class="text-small">
+      You can use the transaction hash to locate your vote on the <a href="/verify">Verify page</a>.
+      Your credential has been cleared from localStorage to prevent accidental double-submission.
+    </p>
+
+    <div class="flex gap-2 mt-2">
+      <button class="btn btn-outline btn-sm" id="btn-copy-hash">Copy Hash</button>
+      <a href="/results" class="btn btn-primary">View Results &rarr;</a>
+    </div>
+  </div>
+</div>
+
+<script src="/static/js/crypto.js"></script>
+<script src="/static/js/app.js"></script>
+<script>
+let activeCred = null; // { token_hex, signature_b64 }
+
+const alertBox      = document.getElementById('alert-box');
+const panelCred     = document.getElementById('panel-cred');
+const panelVote     = document.getElementById('panel-vote');
+const panelConfirm  = document.getElementById('panel-confirm');
+const btnLoadCred   = document.getElementById('btn-load-cred');
+const btnBack       = document.getElementById('btn-back');
+const btnCast       = document.getElementById('btn-cast');
+const candidateList = document.getElementById('candidate-list');
+
+// Radio toggle
+document.querySelectorAll('input[name="cred-src"]').forEach(r => {
+  r.addEventListener('change', () => {
+    const manual  = document.getElementById('manual-cred-panel');
+    const browser = document.getElementById('browser-cred-panel');
+    if (r.value === 'manual' && r.checked) {
+      showElement(manual); hideElement(browser);
+    } else {
+      hideElement(manual); showElement(browser);
+    }
+  });
+});
+
+// Check localStorage on load
+(function checkBrowserCred() {
+  const cred = loadCredential();
+  const found   = document.getElementById('browser-cred-found');
+  const missing = document.getElementById('browser-cred-missing');
+  if (cred) {
+    document.getElementById('preview-token').textContent = cred.token_hex;
+    showElement(found); hideElement(missing);
+  } else {
+    hideElement(found); showElement(missing);
+  }
+})();
+
+// Load candidates
+(async function loadCandidates() {
+  try {
+    const data = await apiFetch('/api/candidates');
+    candidateList.innerHTML = data.candidates.map(c => `
+      <label style="display:block; padding:.75rem 1rem; border:1px solid var(--gray-200);
+                    border-radius:var(--radius); margin-bottom:.5rem; cursor:pointer;
+                    transition:background .1s;" onmouseover="this.style.background='#f3f4f6'"
+                    onmouseout="this.style.background=''">
+        <input type="radio" name="candidate" value="${c}" style="margin-right:.5rem;">
+        ${c}
+      </label>
+    `).join('');
+  } catch (e) {
+    showAlert(alertBox, 'Failed to load candidates.', 'error');
+  }
+})();
+
+// Step 1 → Step 2
+btnLoadCred.addEventListener('click', async () => {
+  hideElement(alertBox);
+  const src = document.querySelector('input[name="cred-src"]:checked').value;
+
+  if (src === 'browser') {
+    const cred = loadCredential();
+    if (!cred) {
+      showAlert(alertBox, 'No credential found. Please register first.', 'error');
+      return;
+    }
+    activeCred = { token_hex: cred.token_hex, signature_b64: cred.signature_b64 };
+  } else {
+    const tokenHex = document.getElementById('manual-token').value.trim();
+    const sigB64   = document.getElementById('manual-sig').value.trim();
+    if (!tokenHex || !sigB64) {
+      showAlert(alertBox, 'Please enter both the token and signature.', 'error');
+      return;
+    }
+    activeCred = { token_hex: tokenHex, signature_b64: sigB64 };
+  }
+
+  // Quick local verification
+  setLoading(btnLoadCred, true, 'Next: Select Candidate →');
+  try {
+    const result = await verifyToken(activeCred.token_hex, activeCred.signature_b64);
+    if (!result.valid) {
+      showAlert(alertBox, 'Credential signature is invalid. Please re-register.', 'error');
+      activeCred = null;
+      setLoading(btnLoadCred, false, 'Next: Select Candidate →');
+      return;
+    }
+  } catch (e) {
+    showAlert(alertBox, `Verification error: ${e.message}`, 'error');
+    setLoading(btnLoadCred, false, 'Next: Select Candidate →');
+    return;
+  }
+  setLoading(btnLoadCred, false, 'Next: Select Candidate →');
+
+  hideElement(panelCred);
+  showElement(panelVote);
+});
+
+btnBack.addEventListener('click', () => {
+  hideElement(panelVote);
+  showElement(panelCred);
+});
+
+// Cast vote
+btnCast.addEventListener('click', async () => {
+  const selected = document.querySelector('input[name="candidate"]:checked');
+  if (!selected) {
+    showAlert(alertBox, 'Please select a candidate.', 'warning');
+    showElement(alertBox);
+    return;
+  }
+  hideElement(alertBox);
+  setLoading(btnCast, true, 'Cast Vote');
+
+  try {
+    const result = await castVote(activeCred.token_hex, activeCred.signature_b64, selected.value);
+    if (!result.success) {
+      showAlert(alertBox, result.error || 'Vote failed.', 'error');
+      showElement(alertBox);
+      setLoading(btnCast, false, 'Cast Vote');
+      return;
+    }
+
+    // Clear stored credential to prevent re-use
+    clearCredential();
+
+    document.getElementById('display-tx-hash').textContent = result.tx_hash;
+    document.getElementById('display-block-idx').textContent = `Block #${result.block_index}`;
+    hideElement(panelVote);
+    showElement(panelConfirm);
+
+  } catch (e) {
+    showAlert(alertBox, `Error: ${e.message}`, 'error');
+    showElement(alertBox);
+    setLoading(btnCast, false, 'Cast Vote');
+  }
+});
+
+document.getElementById('btn-copy-hash').addEventListener('click', () => {
+  const hash = document.getElementById('display-tx-hash').textContent;
+  navigator.clipboard.writeText(hash).then(() => {
+    document.getElementById('btn-copy-hash').textContent = 'Copied!';
+    setTimeout(() => { document.getElementById('btn-copy-hash').textContent = 'Copy Hash'; }, 2000);
+  });
+});
+</script>
+</body>
+</html>

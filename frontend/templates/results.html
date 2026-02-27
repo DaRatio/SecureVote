@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Results — SecureVote</title>
+  <link rel="stylesheet" href="/static/css/style.css">
+  <style>
+    .winner-card { border: 2px solid var(--primary); }
+  </style>
+</head>
+<body>
+<nav>
+  <a href="/" class="brand">SecureVote</a>
+  <a href="/register">Register</a>
+  <a href="/vote">Vote</a>
+  <a href="/results" class="active">Results</a>
+  <a href="/verify">Verify</a>
+</nav>
+
+<div class="container">
+  <div class="flex justify-between items-center" style="margin-bottom:1rem;">
+    <h1>Live Results</h1>
+    <button class="btn btn-outline btn-sm" id="btn-refresh">&#8635; Refresh</button>
+  </div>
+  <p>Counts are tallied directly from the public blockchain. No central authority controls these numbers.</p>
+
+  <div id="alert-box" class="hidden"></div>
+
+  <!-- Stats row -->
+  <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; margin-bottom:1.5rem;">
+    <div class="card text-center mb-0">
+      <div style="font-size:2rem; font-weight:700; color:var(--primary);" id="stat-total">—</div>
+      <div class="text-small">Total Votes Cast</div>
+    </div>
+    <div class="card text-center mb-0">
+      <div style="font-size:2rem; font-weight:700; color:var(--primary);" id="stat-blocks">—</div>
+      <div class="text-small">Blockchain Blocks</div>
+    </div>
+    <div class="card text-center mb-0">
+      <div style="font-size:2rem; font-weight:700; color:var(--primary);" id="stat-tokens">—</div>
+      <div class="text-small">Unique Tokens Used</div>
+    </div>
+  </div>
+
+  <!-- Tally bars -->
+  <div class="card" id="tally-container">
+    <h2>Vote Tallies</h2>
+    <div id="tally-rows">
+      <div class="flex items-center gap-1" style="color:var(--gray-600);">
+        <span class="spinner spinner-dark"></span> Loading…
+      </div>
+    </div>
+  </div>
+
+  <!-- Winner announcement -->
+  <div class="card hidden winner-card" id="winner-card">
+    <h2 id="winner-text" style="color:var(--primary);"></h2>
+    <p class="text-small">This result is computed directly from the immutable blockchain record.</p>
+  </div>
+
+  <p class="text-small text-center">
+    Results update every 10 seconds. For independent verification, visit the <a href="/verify">Verify page</a>.
+  </p>
+</div>
+
+<script src="/static/js/app.js"></script>
+<script>
+async function refresh() {
+  const alertBox = document.getElementById('alert-box');
+  try {
+    const data = await getResults();
+    const { tallies, stats } = data;
+
+    document.getElementById('stat-total').textContent  = stats.total_votes;
+    document.getElementById('stat-blocks').textContent = stats.block_count;
+    document.getElementById('stat-tokens').textContent = stats.spent_tokens;
+
+    const total = Object.values(tallies).reduce((a, b) => a + b, 0) || 1;
+    const sorted = Object.entries(tallies).sort((a, b) => b[1] - a[1]);
+
+    const rows = sorted.map(([cand, count]) => {
+      const pct = ((count / total) * 100).toFixed(1);
+      return `
+        <div class="tally-row">
+          <div class="tally-label">
+            <span>${cand}</span>
+            <span>${count} vote${count !== 1 ? 's' : ''} (${pct}%)</span>
+          </div>
+          <div class="tally-bar-bg">
+            <div class="tally-bar-fill" style="width:${pct}%"></div>
+          </div>
+        </div>`;
+    }).join('');
+
+    document.getElementById('tally-rows').innerHTML = rows || '<p class="text-muted">No votes yet.</p>';
+
+    // Winner
+    const winnerCard = document.getElementById('winner-card');
+    if (stats.total_votes > 0 && sorted[0][1] > (sorted[1]?.[1] ?? 0)) {
+      document.getElementById('winner-text').textContent = `Leading: ${sorted[0][0]} with ${sorted[0][1]} vote${sorted[0][1] !== 1 ? 's' : ''}`;
+      winnerCard.classList.remove('hidden');
+    } else {
+      winnerCard.classList.add('hidden');
+    }
+
+    hideElement(alertBox);
+  } catch (e) {
+    showAlert(alertBox, `Failed to load results: ${e.message}`, 'error');
+  }
+}
+
+document.getElementById('btn-refresh').addEventListener('click', refresh);
+refresh();
+setInterval(refresh, 10000);
+</script>
+</body>
+</html>

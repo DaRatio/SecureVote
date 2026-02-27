@@ -1,0 +1,217 @@
+/* SecureVote — base stylesheet */
+
+:root {
+  --primary: #2563eb;
+  --primary-dark: #1d4ed8;
+  --success: #16a34a;
+  --danger: #dc2626;
+  --warning: #d97706;
+  --gray-50: #f9fafb;
+  --gray-100: #f3f4f6;
+  --gray-200: #e5e7eb;
+  --gray-600: #4b5563;
+  --gray-700: #374151;
+  --gray-800: #1f2937;
+  --radius: 8px;
+  --shadow: 0 1px 3px rgba(0,0,0,.12), 0 1px 2px rgba(0,0,0,.08);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--gray-50);
+  color: var(--gray-800);
+  line-height: 1.6;
+  min-height: 100vh;
+}
+
+/* ---- Navbar ---- */
+nav {
+  background: white;
+  border-bottom: 1px solid var(--gray-200);
+  padding: 0 2rem;
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+  height: 60px;
+  box-shadow: var(--shadow);
+}
+nav .brand {
+  font-weight: 700;
+  font-size: 1.25rem;
+  color: var(--primary);
+  text-decoration: none;
+}
+nav a {
+  color: var(--gray-600);
+  text-decoration: none;
+  font-size: .95rem;
+  padding: .25rem .5rem;
+  border-radius: 4px;
+  transition: background .15s;
+}
+nav a:hover, nav a.active { background: var(--gray-100); color: var(--gray-800); }
+
+/* ---- Layout ---- */
+.container {
+  max-width: 760px;
+  margin: 2.5rem auto;
+  padding: 0 1.5rem;
+}
+
+.card {
+  background: white;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  padding: 2rem;
+  box-shadow: var(--shadow);
+  margin-bottom: 1.5rem;
+}
+
+h1 { font-size: 1.75rem; margin-bottom: .5rem; }
+h2 { font-size: 1.25rem; margin-bottom: 1rem; }
+h3 { font-size: 1rem; margin-bottom: .5rem; color: var(--gray-700); }
+p  { margin-bottom: 1rem; color: var(--gray-600); }
+
+/* ---- Forms ---- */
+label { display: block; font-weight: 600; margin-bottom: .35rem; font-size: .9rem; }
+input[type="text"], select, textarea {
+  width: 100%;
+  padding: .6rem .85rem;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius);
+  font-size: 1rem;
+  outline: none;
+  transition: border-color .15s;
+  font-family: inherit;
+}
+input:focus, select:focus { border-color: var(--primary); }
+.form-group { margin-bottom: 1.25rem; }
+
+/* ---- Buttons ---- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .65rem 1.4rem;
+  border: none;
+  border-radius: var(--radius);
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background .15s, opacity .15s;
+}
+.btn:disabled { opacity: .55; cursor: not-allowed; }
+.btn-primary { background: var(--primary); color: white; }
+.btn-primary:hover:not(:disabled) { background: var(--primary-dark); }
+.btn-success { background: var(--success); color: white; }
+.btn-danger  { background: var(--danger);  color: white; }
+.btn-outline {
+  background: transparent;
+  border: 1px solid var(--gray-200);
+  color: var(--gray-700);
+}
+.btn-outline:hover { background: var(--gray-100); }
+.btn-sm { padding: .4rem .9rem; font-size: .875rem; }
+
+/* ---- Alerts ---- */
+.alert {
+  padding: .85rem 1rem;
+  border-radius: var(--radius);
+  margin-bottom: 1rem;
+  font-size: .95rem;
+}
+.alert-success { background: #dcfce7; border: 1px solid #bbf7d0; color: #15803d; }
+.alert-error   { background: #fee2e2; border: 1px solid #fecaca; color: #b91c1c; }
+.alert-info    { background: #dbeafe; border: 1px solid #bfdbfe; color: #1d4ed8; }
+.alert-warning { background: #fef9c3; border: 1px solid #fef08a; color: #854d0e; }
+
+/* ---- Badge ---- */
+.badge {
+  display: inline-block;
+  padding: .2rem .6rem;
+  border-radius: 9999px;
+  font-size: .78rem;
+  font-weight: 600;
+}
+.badge-green  { background: #dcfce7; color: #15803d; }
+.badge-blue   { background: #dbeafe; color: #1d4ed8; }
+.badge-red    { background: #fee2e2; color: #b91c1c; }
+.badge-gray   { background: var(--gray-100); color: var(--gray-600); }
+
+/* ---- Progress / Tally bar ---- */
+.tally-row { margin-bottom: 1.25rem; }
+.tally-label { display: flex; justify-content: space-between; margin-bottom: .35rem; font-weight: 600; }
+.tally-bar-bg { background: var(--gray-100); border-radius: 99px; height: 20px; overflow: hidden; }
+.tally-bar-fill { height: 100%; border-radius: 99px; background: var(--primary); transition: width .6s ease; }
+
+/* ---- Code / mono ---- */
+.mono {
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: .85rem;
+  background: var(--gray-100);
+  border-radius: 4px;
+  padding: .15rem .45rem;
+  word-break: break-all;
+}
+.code-block {
+  background: var(--gray-800);
+  color: #e5e7eb;
+  border-radius: var(--radius);
+  padding: 1rem 1.2rem;
+  font-family: "SFMono-Regular", Consolas, monospace;
+  font-size: .82rem;
+  overflow-x: auto;
+  margin-bottom: 1rem;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* ---- Step indicator ---- */
+.steps { display: flex; gap: 0; margin-bottom: 2rem; }
+.step {
+  flex: 1;
+  text-align: center;
+  padding: .5rem;
+  font-size: .82rem;
+  color: var(--gray-600);
+  border-bottom: 3px solid var(--gray-200);
+  font-weight: 600;
+}
+.step.active { color: var(--primary); border-color: var(--primary); }
+.step.done   { color: var(--success); border-color: var(--success); }
+
+/* ---- Separator ---- */
+hr { border: none; border-top: 1px solid var(--gray-200); margin: 1.5rem 0; }
+
+/* ---- Spinner ---- */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+  display: inline-block;
+  width: 16px; height: 16px;
+  border: 2px solid rgba(255,255,255,.4);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+.spinner-dark {
+  border-color: rgba(0,0,0,.15);
+  border-top-color: var(--primary);
+}
+
+/* ---- Utilities ---- */
+.mt-1 { margin-top: .5rem; }
+.mt-2 { margin-top: 1rem; }
+.mt-3 { margin-top: 1.5rem; }
+.mb-0 { margin-bottom: 0; }
+.text-center { text-align: center; }
+.text-small  { font-size: .875rem; color: var(--gray-600); }
+.text-muted  { color: var(--gray-600); }
+.flex { display: flex; }
+.gap-1 { gap: .5rem; }
+.gap-2 { gap: 1rem; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.w-full { width: 100%; }
+.hidden { display: none !important; }
